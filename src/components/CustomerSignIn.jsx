@@ -50,6 +50,17 @@ const CustomerSignIn = () => {
     <div className="customer-signin-page">
       <div className="signin-container">
         <div className="signin-header" data-aos="fade-down">
+          <div className="signin-topbar">
+            <button
+              type="button"
+              className="back-link"
+              onClick={() => navigate('/')}
+              aria-label="Back to landing page"
+            >
+              ← Back
+            </button>
+          </div>
+
           <h1 className="signin-logo" onClick={() => navigate('/')}>
             🍽️ Queuelah
           </h1>

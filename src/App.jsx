@@ -12,6 +12,7 @@ import MyDashboard from './components/MyDashboard';
 import CustomerDashboard from './components/CustomerDashboard';
 import CustomerRestaurantDetail from './components/CustomerRestaurantDetail';
 import RestaurantSettings from './components/RestaurantSettings';
+import RequireRestaurantOwner from './components/RequireRestaurantOwner';
 import './App.css';
 
 function App() {
@@ -33,10 +34,31 @@ function App() {
           {/* My Dashboard - auto-redirects to logged-in user's dashboard */}
           <Route path="/my-dashboard" element={<MyDashboard />} />
           
-          {/* Dashboard pages - standalone */}
-          <Route path="/dashboard/:restaurantId" element={<Dashboard />} />
-          <Route path="/dashboard/:restaurantId/queue" element={<QueueDetails />} />
-          <Route path="/dashboard/:restaurantId/settings" element={<RestaurantSettings />} />
+          {/* Dashboard pages - protected (Option B) */}
+          <Route
+            path="/dashboard/:restaurantId"
+            element={
+              <RequireRestaurantOwner>
+                <Dashboard />
+              </RequireRestaurantOwner>
+            }
+          />
+          <Route
+            path="/dashboard/:restaurantId/queue"
+            element={
+              <RequireRestaurantOwner>
+                <QueueDetails />
+              </RequireRestaurantOwner>
+            }
+          />
+          <Route
+            path="/dashboard/:restaurantId/settings"
+            element={
+              <RequireRestaurantOwner>
+                <RestaurantSettings />
+              </RequireRestaurantOwner>
+            }
+          />
           
           {/* App routes with header/footer */}
           <Route path="/*" element={

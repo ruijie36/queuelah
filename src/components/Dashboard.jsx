@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth } from '../config/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { 
-  subscribeToRestaurantQueue, 
+  subscribeToRestaurantQueue,
+  subscribeToMissedQueue,
   callNextParty, 
   removeFromQueue, 
   markAsSeated,
   toggleQueuePause,
   isPeakHours,
-  calculateQueueIntensity
+  calculateQueueIntensity,
+  markAsSkipped
 } from '../services/queueService';
 import { subscribeToRestaurant } from '../services/restaurantService';
 import './Dashboard.css';
@@ -24,6 +26,30 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Close settings dropdown when clicking outside
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onDocClick = (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.closest('.settings-menu')) return;
+      setSettingsOpen(false);
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [settingsOpen]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate('/restaurant-signin', { replace: true });
+    } catch (e) {
+      console.error('Logout failed:', e);
+      alert('Failed to log out. Please try again.');
+    }
+  };
 
   // Check if user is authenticated and owns this restaurant
   useEffect(() => {
@@ -88,10 +114,18 @@ const Dashboard = () => {
       setQueue(queueData);
     });
 
+    const unsubscribeMissed = subscribeToMissedQueue(restaurantId, (missed) => {
+      setMissedQueue(missed.map((m) => ({
+        ...m,
+        missedAt: m.skippedAt || m.missedAt || null,
+      })));
+    });
+
     return () => {
       console.log('Dashboard unmounting, cleaning up subscriptions');
       unsubscribeRestaurant();
       unsubscribeQueue();
+      unsubscribeMissed();
     };
   }, [restaurantId, authChecked]);
 
@@ -122,13 +156,23 @@ const Dashboard = () => {
     }, timerDuration * 60 * 1000);
   };
 
-  const handleMissedParty = (entry) => {
+  const handleMissedParty = async (entry) => {
+    // Add to local Missed Queue list
     setMissedQueue(prev => [...prev, { ...entry, missedAt: new Date() }]);
+
+    // Clear timer UI
     setTimers(prev => {
       const newTimers = { ...prev };
       delete newTimers[entry.id];
       return newTimers;
     });
+
+    // Persist: mark as skipped so it disappears from active waiting list
+    try {
+      await markAsSkipped(entry.id);
+    } catch (e) {
+      console.error('Error marking party as skipped:', e);
+    }
   };
 
   const handleCancelTimer = (entryId) => {
@@ -182,7 +226,10 @@ const Dashboard = () => {
 
   // Calculate total people waiting
   const totalWaiting = queue.length;
-  const avgWaitTime = restaurant?.currentWaitTime || 0;
+
+  // Estimated queue time: 0 when empty, grows with queue length (minutes per party)
+  const minutesPerParty = restaurant?.avgMinutesPerParty || 8;
+  const estimatedQueueTime = totalWaiting === 0 ? 0 : totalWaiting * minutesPerParty;
 
   // Show loading while checking authentication
   if (!authChecked) {
@@ -245,7 +292,7 @@ const Dashboard = () => {
   }
 
   const isPeak = isPeakHours();
-  const frontQueue = queue.slice(0, 5); // First 5 parties for quick view
+  const frontQueue = queue.slice(0, 3); // Only show first 3 parties
 
   return (
     <div className="dashboard">
@@ -262,13 +309,47 @@ const Dashboard = () => {
           >
             {restaurant?.queuePaused ? 'Resume Queue' : 'Pause Queue'}
           </button>
-          <button 
-            className="settings-btn"
-            onClick={() => navigate(`/dashboard/${restaurantId}/settings`)}
-            title="Restaurant Settings"
-          >
-            ⚙️
-          </button>
+
+          <div className={`settings-menu ${settingsOpen ? 'open' : ''}`}>
+            <button
+              className="settings-btn"
+              onClick={() => setSettingsOpen((v) => !v)}
+              title="Settings"
+              aria-haspopup="menu"
+              aria-expanded={settingsOpen}
+              type="button"
+            >
+              ⚙️
+            </button>
+
+            {settingsOpen && (
+              <div className="settings-dropdown" role="menu">
+                <button
+                  className="settings-dropdown-item"
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    navigate(`/dashboard/${restaurantId}/settings`);
+                  }}
+                >
+                  Restaurant Settings
+                </button>
+
+                <button
+                  className="settings-dropdown-item danger"
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    handleLogout();
+                  }}
+                >
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -286,16 +367,8 @@ const Dashboard = () => {
         <div className="stat-card" data-aos="fade-up" data-aos-delay="200">
           <div className="stat-icon">⏱️</div>
           <div className="stat-content">
-            <div className="stat-value">{avgWaitTime}</div>
-            <div className="stat-label">Avg Wait Time (min)</div>
-          </div>
-        </div>
-        
-        <div className="stat-card" data-aos="fade-up" data-aos-delay="250">
-          <div className="stat-icon">📊</div>
-          <div className="stat-content">
-            <div className="stat-value">{queue.filter(q => q.status === 'waiting').length}</div>
-            <div className="stat-label">Currently Waiting</div>
+            <div className="stat-value">{estimatedQueueTime}</div>
+            <div className="stat-label">Estimated Queue Time</div>
           </div>
         </div>
       </div>
@@ -380,7 +453,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {queue.length > 5 && (
+        {queue.length > 3 && (
           <button 
             className="view-all-btn"
             onClick={navigateToQueueDetails}
@@ -390,18 +463,22 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* Missed Queue Section */}
-      {missedQueue.length > 0 && (
-        <div className="section-container missed-section" data-aos="fade-up" data-aos-delay="400">
-          <div className="section-header">
-            <h2>Missed Queue</h2>
-            <p className="section-subtitle">Parties that didn't show up</p>
-          </div>
+      {/* Missed Queue Section (always visible below Front of Queue) */}
+      <div className="section-container missed-section" data-aos="fade-up" data-aos-delay="400">
+        <div className="section-header">
+          <h2>Missed Queue</h2>
+          <p className="section-subtitle">Parties that missed their time window</p>
+        </div>
 
+        {missedQueue.length === 0 ? (
+          <div className="empty-state">
+            <p>No missed parties</p>
+          </div>
+        ) : (
           <div className="queue-list">
             {missedQueue.map((entry, index) => (
-              <div 
-                key={entry.id} 
+              <div
+                key={entry.id}
                 className="queue-item missed"
                 data-aos="fade-up"
                 data-aos-delay={Math.min(index * 50, 200)}
@@ -418,7 +495,7 @@ const Dashboard = () => {
                 </div>
 
                 <div className="queue-item-right">
-                  <button 
+                  <button
                     className="btn-danger btn-small"
                     onClick={() => handleRemoveFromMissed(entry.id)}
                   >
@@ -428,8 +505,8 @@ const Dashboard = () => {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../config/firebase';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
 import AOS from 'aos';
 import './RestaurantSignIn.css';
+import { useAuth } from '../context/AuthContext';
 
 const RestaurantSignIn = () => {
   const navigate = useNavigate();
+  const { restaurantSignIn, restaurantSignUp } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,63 +27,35 @@ const RestaurantSignIn = () => {
     setError('');
     setLoading(true);
 
-    console.log('Form submitted:', { isSignUp, email, restaurantName });
-
     // Set a timeout to prevent infinite loading
     const timeout = setTimeout(() => {
       setError('Request timed out. Please check your internet connection and try again.');
       setLoading(false);
-    }, 15000); // 15 second timeout
+    }, 15000);
 
     try {
       if (isSignUp) {
-        console.log('Starting sign up process...');
-        
-        // Validate inputs
         if (!restaurantName || restaurantName.trim().length < 2) {
           throw new Error('Restaurant name must be at least 2 characters');
         }
-        
-        // Sign up new restaurant
-        console.log('Creating user with email/password...');
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        console.log('User created successfully:', userCredential.user.uid);
-        
-        // Create restaurant document in Firestore
-        console.log('Creating Firestore document...');
-        await setDoc(doc(db, 'restaurants', userCredential.user.uid), {
-          name: restaurantName,
-          email: email,
-          createdAt: new Date().toISOString(),
-          queuePaused: false,
-          minPartySize: 1,
-          maxPartySize: 8,
-          currentWaitTime: 0,
-          queueLength: 0,
+
+        const { restaurantId } = await restaurantSignUp({
+          email,
+          password,
+          restaurantName: restaurantName.trim(),
         });
-        console.log('Firestore document created successfully');
-        
+
         clearTimeout(timeout);
-        
-        // Redirect to dashboard
-        console.log('Redirecting to dashboard...');
-        navigate(`/dashboard/${userCredential.user.uid}`);
+        navigate(`/dashboard/${restaurantId}`);
       } else {
-        console.log('Starting sign in process...');
-        // Sign in existing restaurant
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        console.log('User signed in successfully:', userCredential.user.uid);
-        
+        const user = await restaurantSignIn(email, password);
         clearTimeout(timeout);
-        
-        // Redirect to dashboard
-        navigate(`/dashboard/${userCredential.user.uid}`);
+        navigate(`/dashboard/${user.uid}`);
       }
     } catch (err) {
       clearTimeout(timeout);
       console.error('Error during authentication:', err);
-      
-      // Better error messages
+
       let errorMessage = err.message;
       if (err.code === 'auth/email-already-in-use') {
         errorMessage = 'This email is already registered. Please sign in instead.';
@@ -98,7 +68,7 @@ const RestaurantSignIn = () => {
       } else if (err.code === 'auth/wrong-password') {
         errorMessage = 'Incorrect password. Please try again.';
       }
-      
+
       setError(errorMessage);
       setLoading(false);
     }
@@ -108,6 +78,17 @@ const RestaurantSignIn = () => {
     <div className="restaurant-signin-page">
       <div className="signin-container">
         <div className="signin-header" data-aos="fade-down">
+          <div className="signin-topbar">
+            <button
+              type="button"
+              className="back-link"
+              onClick={() => navigate('/')}
+              aria-label="Back to landing page"
+            >
+              ← Back
+            </button>
+          </div>
+
           <h1 className="signin-logo" onClick={() => navigate('/')}>
             🍽️ Queuelah
           </h1>

@@ -437,3 +437,60 @@ export const calculateQueueIntensity = (queueLength, averageWaitTime) => {
   const waitScore = Math.min(averageWaitTime / 2, 50); // Max 50 points
   return Math.min(lengthScore + waitScore, 100);
 };
+
+/**
+ * Mark a queue entry as skipped (missed their time window)
+ * Keeps the document for historical/missed tracking but removes it from active waiting queries.
+ */
+export const markAsSkipped = async (entryId) => {
+  try {
+    const entry = await getQueueEntry(entryId);
+    if (!entry) {
+      throw new Error('Queue entry not found');
+    }
+
+    const entryRef = doc(db, 'queue', entryId);
+    await updateDoc(entryRef, {
+      status: 'skipped',
+      skippedAt: Timestamp.now(),
+    });
+
+    // Reorder remaining queue (waiting only)
+    await reorderQueue(entry.restaurantId);
+
+    // Decrement visible queue length
+    const restaurantRef = doc(db, 'restaurants', entry.restaurantId);
+    await updateDoc(restaurantRef, {
+      queueLength: increment(-1),
+    });
+  } catch (error) {
+    console.error('Error marking as skipped:', error);
+    throw error;
+  }
+};
+
+/**
+ * Subscribe to missed/skipped queue entries for a restaurant (real-time)
+ */
+export const subscribeToMissedQueue = (restaurantId, callback) => {
+  const queueRef = collection(db, 'queue');
+  const q = query(
+    queueRef,
+    where('restaurantId', '==', restaurantId),
+    where('status', '==', 'skipped'),
+    orderBy('skippedAt', 'desc')
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const missed = snapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+      joinedAt: docSnap.data().joinedAt?.toDate(),
+      skippedAt: docSnap.data().skippedAt?.toDate(),
+    }));
+    callback(missed);
+  }, (error) => {
+    console.error('Error in missed queue subscription:', error);
+    callback([]);
+  });
+};

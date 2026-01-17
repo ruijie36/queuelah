@@ -32,7 +32,7 @@ const QueueStatus = () => {
     if (window.confirm('Are you sure you want to leave the queue?')) {
       try {
         await cancelQueueEntry(id);
-        navigate('/');
+        navigate('/customer/dashboard');
       } catch (error) {
         console.error('Error cancelling queue entry:', error);
         alert('Failed to cancel. Please try again.');
@@ -89,23 +89,21 @@ const QueueStatus = () => {
 
   if (loading) {
     return (
-      <div className="queue-status">
-        <div className="loading">Loading your queue status...</div>
-      </div>
+      <div className="loading">Loading your queue status...</div>
     );
   }
 
   if (!queueEntry) {
     return (
-      <div className="queue-status">
+      <>
         <div className="error">Queue entry not found</div>
-        <button onClick={() => navigate('/')}>Back to Home</button>
-      </div>
+        <button onClick={() => navigate('/customer/dashboard')}>Back to Dashboard</button>
+      </>
     );
   }
 
   return (
-    <div className="queue-status">
+    <>
       <div className="queue-header">
         <h1>{restaurant?.name}</h1>
         <p className="restaurant-address">{restaurant?.address}</p>
@@ -177,11 +175,11 @@ const QueueStatus = () => {
             Leave Queue
           </button>
         )}
-        <button className="home-button" onClick={() => navigate('/')}>
-          Back to Home
+        <button className="home-button" onClick={() => navigate('/customer/dashboard')}>
+          Back to Dashboard
         </button>
       </div>
-    </div>
+    </>
   );
 };
 
