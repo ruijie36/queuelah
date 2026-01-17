@@ -1,0 +1,328 @@
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { 
+  subscribeToRestaurantQueue, 
+  callNextParty, 
+  removeFromQueue, 
+  markAsSeated,
+  addWalkIn,
+  skipParty,
+  toggleQueuePause,
+  markReadyToReturn,
+  isPeakHours,
+  calculateQueueIntensity
+} from '../services/queueService';
+import { getRestaurantById, subscribeToRestaurant } from '../services/restaurantService';
+import './Dashboard.css';
+
+const Dashboard = () => {
+  const { restaurantId } = useParams();
+  const [restaurant, setRestaurant] = useState(null);
+  const [queue, setQueue] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showWalkInForm, setShowWalkInForm] = useState(false);
+  const [walkInData, setWalkInData] = useState({ name: '', partySize: 2, phone: '' });
+
+  useEffect(() => {
+    loadRestaurant();
+    
+    // Subscribe to restaurant updates
+    const unsubscribeRestaurant = subscribeToRestaurant(restaurantId, (data) => {
+      setRestaurant(data);
+    });
+    
+    // Subscribe to queue updates
+    const unsubscribeQueue = subscribeToRestaurantQueue(restaurantId, (queueData) => {
+      setQueue(queueData);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubscribeRestaurant();
+      unsubscribeQueue();
+    };
+  }, [restaurantId]);
+
+  const loadRestaurant = async () => {
+    try {
+      const data = await getRestaurantById(restaurantId);
+      setRestaurant(data);
+    } catch (error) {
+      console.error('Error loading restaurant:', error);
+    }
+  };
+
+  const handleCallNext = async () => {
+    try {
+      await callNextParty(restaurantId);
+    } catch (error) {
+      console.error('Error calling next party:', error);
+      alert(error.message || 'Failed to call next party');
+    }
+  };
+
+  const handleRemove = async (entryId) => {
+    if (window.confirm('Remove this party from the queue?')) {
+      try {
+        await removeFromQueue(entryId);
+      } catch (error) {
+        console.error('Error removing from queue:', error);
+        alert('Failed to remove party');
+      }
+    }
+  };
+
+  const handleSeated = async (entryId) => {
+    try {
+      await markAsSeated(entryId);
+    } catch (error) {
+      console.error('Error marking as seated:', error);
+      alert('Failed to mark as seated');
+    }
+  };
+
+  const handleSkip = async (entryId) => {
+    if (window.confirm('Skip this party? They will be removed from the queue.')) {
+      try {
+        await skipParty(entryId);
+      } catch (error) {
+        console.error('Error skipping party:', error);
+        alert('Failed to skip party');
+      }
+    }
+  };
+
+  const handleNotifyReturn = async (entryId) => {
+    try {
+      await markReadyToReturn(entryId);
+      alert('Party notified to return within 10 minutes');
+    } catch (error) {
+      console.error('Error notifying party:', error);
+      alert('Failed to send notification');
+    }
+  };
+
+  const handleTogglePause = async () => {
+    try {
+      await toggleQueuePause(restaurantId, !restaurant?.queuePaused);
+    } catch (error) {
+      console.error('Error toggling pause:', error);
+      alert('Failed to toggle queue pause');
+    }
+  };
+
+  const handleAddWalkIn = async (e) => {
+    e.preventDefault();
+    try {
+      await addWalkIn(restaurantId, walkInData.name, parseInt(walkInData.partySize), walkInData.phone);
+      setShowWalkInForm(false);
+      setWalkInData({ name: '', partySize: 2, phone: '' });
+    } catch (error) {
+      console.error('Error adding walk-in:', error);
+      alert('Failed to add walk-in');
+    }
+  };
+
+  const formatTime = (date) => {
+    if (!date) return '';
+    const now = new Date();
+    const diff = Math.floor((now - date) / 1000 / 60); // minutes
+    
+    if (diff < 1) return 'Just now';
+    if (diff < 60) return `${diff} min ago`;
+    const hours = Math.floor(diff / 60);
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  };
+
+  if (loading) {
+    return (
+      <div className="dashboard">
+        <div className="loading">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  const isPeak = isPeakHours();
+  const intensity = calculateQueueIntensity(queue.length, restaurant?.currentWaitTime || 0);
+
+  return (
+    <div className="dashboard">
+      <div className="dashboard-header">
+        <h1>{restaurant?.name} - Queue Management</h1>
+        {isPeak && <div className="peak-indicator">🔥 Peak Hours Active</div>}
+        
+        <div className="queue-summary">
+          <div className="summary-item">
+            <span className="summary-value">{queue.length}</span>
+            <span className="summary-label">Parties Waiting</span>
+          </div>
+          <div className="summary-item">
+            <span className="summary-value">{restaurant?.currentWaitTime || 0}</span>
+            <span className="summary-label">Avg Wait (min)</span>
+          </div>
+          <div className="summary-item">
+            <span className="summary-value" style={{ color: intensity > 60 ? '#f44336' : intensity > 30 ? '#ff9800' : '#4caf50' }}>
+              {Math.round(intensity)}%
+            </span>
+            <span className="summary-label">Queue Intensity</span>
+          </div>
+        </div>
+
+        <div className="dashboard-controls">
+          <button 
+            className={`control-button ${restaurant?.queuePaused ? 'resume' : 'pause'}`}
+            onClick={handleTogglePause}
+          >
+            {restaurant?.queuePaused ? '▶️ Resume Queue' : '⏸️ Pause Queue'}
+          </button>
+          <button 
+            className="control-button add-walkin"
+            onClick={() => setShowWalkInForm(!showWalkInForm)}
+          >
+            👥 Add Walk-In
+          </button>
+        </div>
+      </div>
+
+      {showWalkInForm && (
+        <div className="walk-in-form">
+          <h3>Add Walk-In Diner</h3>
+          <form onSubmit={handleAddWalkIn}>
+            <input
+              type="text"
+              placeholder="Name"
+              value={walkInData.name}
+              onChange={(e) => setWalkInData({ ...walkInData, name: e.target.value })}
+              required
+            />
+            <select
+              value={walkInData.partySize}
+              onChange={(e) => setWalkInData({ ...walkInData, partySize: e.target.value })}
+            >
+              {[1,2,3,4,5,6,7,8,9,10].map(size => (
+                <option key={size} value={size}>{size} {size === 1 ? 'person' : 'people'}</option>
+              ))}
+            </select>
+            <input
+              type="tel"
+              placeholder="Phone (optional)"
+              value={walkInData.phone}
+              onChange={(e) => setWalkInData({ ...walkInData, phone: e.target.value })}
+            />
+            <div className="form-actions">
+              <button type="submit" className="submit-button">Add to Queue</button>
+              <button type="button" className="cancel-button" onClick={() => setShowWalkInForm(false)}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {queue.length > 0 && !restaurant?.queuePaused && (
+        <div className="call-next-section">
+          <button className="call-next-button" onClick={handleCallNext}>
+            🔔 Call Next Party
+          </button>
+        </div>
+      )}
+
+      {restaurant?.queuePaused && (
+        <div className="paused-notice">
+          ⏸️ Queue is currently paused. Resume to accept new diners.
+        </div>
+      )}
+
+      <div className="queue-list">
+        <h2>Current Queue</h2>
+        
+        {queue.length === 0 ? (
+          <div className="empty-queue">
+            <p>No parties in queue</p>
+          </div>
+        ) : (
+          <div className="queue-items">
+            {queue.map((entry) => (
+              <div key={entry.id} className={`queue-item ${entry.status === 'called' ? 'called' : ''} ${entry.isWalkIn ? 'walk-in' : ''}`}>
+                <div className="queue-item-header">
+                  <div className="position-badge">#{entry.position}</div>
+                  <div className="party-info">
+                    <h3>
+                      {entry.customerName}
+                      {entry.isWalkIn && <span className="walk-in-badge">Walk-In</span>}
+                      {!entry.isWalkIn && <span className="online-badge">Online</span>}
+                    </h3>
+                    <div className="party-details">
+                      <span className="party-size">👥 {entry.partySize}</span>
+                      {entry.phoneNumber && <span className="phone">📱 {entry.phoneNumber}</span>}
+                      <span className="wait-time">
+                        ⏱️ {entry.waitTimeRange 
+                          ? `${entry.waitTimeRange.min}-${entry.waitTimeRange.max} min`
+                          : `${entry.estimatedWaitTime} min`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="queue-item-meta">
+                  <span className="joined-time">Joined {formatTime(entry.joinedAt)}</span>
+                  {entry.status === 'called' && (
+                    <span className="status-badge called">Called</span>
+                  )}
+                  {entry.readyToReturn && entry.status !== 'called' && (
+                    <span className="status-badge ready">Ready</span>
+                  )}
+                  {entry.gracePeriodExpiry && new Date(entry.gracePeriodExpiry.seconds * 1000) > new Date() && (
+                    <span className="status-badge grace">Grace Period</span>
+                  )}
+                </div>
+
+                <div className="queue-item-actions">
+                  {entry.status === 'called' ? (
+                    <>
+                      <button 
+                        className="action-button seated"
+                        onClick={() => handleSeated(entry.id)}
+                      >
+                        ✓ Seated
+                      </button>
+                      <button 
+                        className="action-button skip"
+                        onClick={() => handleSkip(entry.id)}
+                      >
+                        ⏭️ Skip
+                      </button>
+                      <button 
+                        className="action-button remove"
+                        onClick={() => handleRemove(entry.id)}
+                      >
+                        ✕ Remove
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {!entry.isWalkIn && entry.position <= 3 && !entry.readyToReturn && (
+                        <button 
+                          className="action-button notify"
+                          onClick={() => handleNotifyReturn(entry.id)}
+                        >
+                          🔔 Notify to Return
+                        </button>
+                      )}
+                      <button 
+                        className="action-button remove"
+                        onClick={() => handleRemove(entry.id)}
+                      >
+                        ✕ Remove
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;

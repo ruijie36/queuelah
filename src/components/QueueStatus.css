@@ -1,0 +1,214 @@
+.queue-status {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.queue-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.queue-header h1 {
+  font-size: 2rem;
+  margin: 0 0 0.5rem 0;
+  color: #333;
+}
+
+.restaurant-address {
+  color: #666;
+  margin: 0;
+}
+
+.status-card {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.status-card.status-called {
+  border: 3px solid #4caf50;
+  animation: pulse 2s infinite;
+}
+
+.status-card.status-ready-return {
+  border: 3px solid #2196f3;
+  animation: pulse 2s infinite;
+  background: #f0f8ff;
+}
+
+.status-card.status-almost-ready {
+  border: 3px solid #ff9800;
+}
+
+.status-card.status-waiting {
+  border: 3px solid #2196f3;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    box-shadow: 0 4px 20px rgba(76, 175, 80, 0.4);
+  }
+}
+
+.status-message {
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.queue-details {
+  margin-bottom: 2rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-row .label {
+  color: #666;
+  font-weight: 500;
+}
+
+.detail-row .value {
+  color: #333;
+  font-weight: 600;
+}
+
+.position-display {
+  text-align: center;
+  margin: 2rem 0;
+}
+
+.position-number {
+  font-size: 5rem;
+  font-weight: bold;
+  color: #667eea;
+  line-height: 1;
+}
+
+.position-label {
+  font-size: 1.2rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+.wait-time {
+  text-align: center;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px;
+}
+
+.wait-time-value {
+  font-size: 3rem;
+  font-weight: bold;
+  display: block;
+}
+
+.wait-time-label {
+  font-size: 1rem;
+  display: block;
+  margin-top: 0.5rem;
+  opacity: 0.9;
+}
+
+.called-notice {
+  text-align: center;
+  padding: 2rem;
+}
+
+.notice-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.notice-text {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #4caf50;
+}
+
+.return-notice {
+  text-align: center;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+  color: white;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+.return-notice .notice-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.return-notice .notice-text {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: white;
+}
+
+.return-notice .notice-subtext {
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  opacity: 0.9;
+}
+
+.walk-in-label {
+  background: #2196f3;
+  color: white;
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.queue-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cancel-button,
+.home-button {
+  padding: 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.cancel-button {
+  background: #f44336;
+  color: white;
+}
+
+.home-button {
+  background: #e0e0e0;
+  color: #333;
+}
+
+.cancel-button:hover,
+.home-button:hover {
+  transform: translateY(-2px);
+}
