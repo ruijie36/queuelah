@@ -29,12 +29,30 @@ const RestaurantSignIn = () => {
     setError('');
     setLoading(true);
 
+    console.log('Form submitted:', { isSignUp, email, restaurantName });
+
+    // Set a timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      setError('Request timed out. Please check your internet connection and try again.');
+      setLoading(false);
+    }, 15000); // 15 second timeout
+
     try {
       if (isSignUp) {
+        console.log('Starting sign up process...');
+        
+        // Validate inputs
+        if (!restaurantName || restaurantName.trim().length < 2) {
+          throw new Error('Restaurant name must be at least 2 characters');
+        }
+        
         // Sign up new restaurant
+        console.log('Creating user with email/password...');
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        console.log('User created successfully:', userCredential.user.uid);
         
         // Create restaurant document in Firestore
+        console.log('Creating Firestore document...');
         await setDoc(doc(db, 'restaurants', userCredential.user.uid), {
           name: restaurantName,
           email: email,
@@ -42,19 +60,46 @@ const RestaurantSignIn = () => {
           queuePaused: false,
           minPartySize: 1,
           maxPartySize: 8,
+          currentWaitTime: 0,
+          queueLength: 0,
         });
+        console.log('Firestore document created successfully');
+        
+        clearTimeout(timeout);
         
         // Redirect to dashboard
+        console.log('Redirecting to dashboard...');
         navigate(`/dashboard/${userCredential.user.uid}`);
       } else {
+        console.log('Starting sign in process...');
         // Sign in existing restaurant
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        console.log('User signed in successfully:', userCredential.user.uid);
+        
+        clearTimeout(timeout);
+        
         // Redirect to dashboard
         navigate(`/dashboard/${userCredential.user.uid}`);
       }
     } catch (err) {
-      setError(err.message);
-    } finally {
+      clearTimeout(timeout);
+      console.error('Error during authentication:', err);
+      
+      // Better error messages
+      let errorMessage = err.message;
+      if (err.code === 'auth/email-already-in-use') {
+        errorMessage = 'This email is already registered. Please sign in instead.';
+      } else if (err.code === 'auth/weak-password') {
+        errorMessage = 'Password should be at least 6 characters.';
+      } else if (err.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (err.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email. Please register first.';
+      } else if (err.code === 'auth/wrong-password') {
+        errorMessage = 'Incorrect password. Please try again.';
+      }
+      
+      setError(errorMessage);
       setLoading(false);
     }
   };

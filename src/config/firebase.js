@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
@@ -14,19 +14,31 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// Debug: Check if environment variables are loaded
-console.log('Firebase Config Check:');
-console.log('API Key exists:', !!firebaseConfig.apiKey);
-console.log('API Key length:', firebaseConfig.apiKey?.length);
-console.log('Auth Domain:', firebaseConfig.authDomain);
-console.log('Project ID:', firebaseConfig.projectId);
+// Verify Firebase config is loaded
+console.log('🔥 Firebase Configuration:');
+console.log('  ✓ API Key:', firebaseConfig.apiKey ? '✓ Loaded' : '✗ Missing');
+console.log('  ✓ Auth Domain:', firebaseConfig.authDomain || '✗ Missing');
+console.log('  ✓ Project ID:', firebaseConfig.projectId || '✗ Missing');
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+console.log('✓ Firebase App Initialized');
 
 // Initialize Firebase services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+
+console.log('✓ Firebase Auth Initialized');
+console.log('✓ Firestore Initialized');
+
+// Set auth persistence to local (survives browser refresh and close)
+setPersistence(auth, browserLocalPersistence)
+  .then(() => {
+    console.log('✓ Auth persistence set to LOCAL (survives refresh)');
+  })
+  .catch((error) => {
+    console.error('✗ Error setting auth persistence:', error);
+  });
 
 export default app;

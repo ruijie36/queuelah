@@ -82,11 +82,19 @@ export const subscribeToRestaurant = (restaurantId, callback) => {
   
   return onSnapshot(restaurantRef, (doc) => {
     if (doc.exists()) {
-      callback({
+      const data = {
         id: doc.id,
         ...doc.data()
-      });
+      };
+      console.log('Restaurant subscription data:', data);
+      callback(data);
+    } else {
+      console.warn('Restaurant document does not exist:', restaurantId);
+      callback(null);
     }
+  }, (error) => {
+    console.error('Error in restaurant subscription:', error);
+    callback(null);
   });
 };
 

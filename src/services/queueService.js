@@ -145,6 +145,10 @@ export const subscribeToRestaurantQueue = (restaurantId, callback) => {
       joinedAt: doc.data().joinedAt?.toDate()
     }));
     callback(queue);
+  }, (error) => {
+    console.error('Error in queue subscription:', error);
+    // Return empty queue on error to prevent UI breaking
+    callback([]);
   });
 };
 

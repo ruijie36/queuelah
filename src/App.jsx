@@ -8,6 +8,10 @@ import RestaurantDetail from './components/RestaurantDetail';
 import QueueStatus from './components/QueueStatus';
 import Dashboard from './components/Dashboard';
 import QueueDetails from './components/QueueDetails';
+import MyDashboard from './components/MyDashboard';
+import CustomerDashboard from './components/CustomerDashboard';
+import CustomerRestaurantDetail from './components/CustomerRestaurantDetail';
+import RestaurantSettings from './components/RestaurantSettings';
 import './App.css';
 
 function App() {
@@ -15,14 +19,24 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Landing page with no header/footer */}
+          {/* Landing page - standalone */}
           <Route path="/" element={<LandingPage />} />
           
-          {/* Customer Sign In - no header/footer */}
+          {/* Auth pages - standalone */}
           <Route path="/customer-signin" element={<CustomerSignIn />} />
-          
-          {/* Restaurant Sign In - no header/footer */}
           <Route path="/restaurant-signin" element={<RestaurantSignIn />} />
+          
+          {/* Customer Dashboard - standalone */}
+          <Route path="/customer/dashboard" element={<CustomerDashboard />} />
+          <Route path="/customer/restaurant/:restaurantId" element={<CustomerRestaurantDetail />} />
+          
+          {/* My Dashboard - auto-redirects to logged-in user's dashboard */}
+          <Route path="/my-dashboard" element={<MyDashboard />} />
+          
+          {/* Dashboard pages - standalone */}
+          <Route path="/dashboard/:restaurantId" element={<Dashboard />} />
+          <Route path="/dashboard/:restaurantId/queue" element={<QueueDetails />} />
+          <Route path="/dashboard/:restaurantId/settings" element={<RestaurantSettings />} />
           
           {/* App routes with header/footer */}
           <Route path="/*" element={
@@ -37,8 +51,6 @@ function App() {
                   <Route path="/restaurants" element={<RestaurantList />} />
                   <Route path="/restaurant/:id" element={<RestaurantDetail />} />
                   <Route path="/queue/:id" element={<QueueStatus />} />
-                  <Route path="/dashboard/:restaurantId" element={<Dashboard />} />
-                  <Route path="/dashboard/:restaurantId/queue" element={<QueueDetails />} />
                 </Routes>
               </main>
 

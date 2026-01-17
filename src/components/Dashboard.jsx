@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { auth } from '../config/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { 
   subscribeToRestaurantQueue, 
   callNextParty, 
@@ -9,7 +11,7 @@ import {
   isPeakHours,
   calculateQueueIntensity
 } from '../services/queueService';
-import { getRestaurantById, subscribeToRestaurant } from '../services/restaurantService';
+import { subscribeToRestaurant } from '../services/restaurantService';
 import './Dashboard.css';
 
 const Dashboard = () => {
@@ -17,38 +19,81 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [restaurant, setRestaurant] = useState(null);
   const [queue, setQueue] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [timers, setTimers] = useState({}); // Track timers for each party
   const [missedQueue, setMissedQueue] = useState([]); // Parties that missed their turn
+  const [error, setError] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Check if user is authenticated and owns this restaurant
+  useEffect(() => {
+    console.log('Setting up auth state listener...');
+    
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('Auth state changed:', user ? user.uid : 'No user');
+      
+      if (!user) {
+        console.log('No user logged in, redirecting to sign in');
+        navigate('/restaurant-signin', { replace: true });
+        return;
+      }
+
+      setCurrentUser(user);
+
+      if (user.uid !== restaurantId) {
+        console.log('User ID mismatch. User:', user.uid, 'URL:', restaurantId);
+        console.log('Redirecting to correct dashboard');
+        navigate(`/dashboard/${user.uid}`, { replace: true });
+        return;
+      }
+
+      console.log('Auth check passed, user owns this restaurant');
+      setAuthChecked(true);
+    }, (error) => {
+      console.error('Auth state error:', error);
+      // On error, still set authChecked to prevent infinite loading
+      setAuthChecked(true);
+    });
+
+    return () => {
+      console.log('Cleaning up auth listener');
+      unsubscribe();
+    };
+  }, [restaurantId, navigate]);
 
   useEffect(() => {
-    loadRestaurant();
+    if (!authChecked) return; // Wait for auth check
     
-    // Subscribe to restaurant updates
+    if (!restaurantId) {
+      setError('No restaurant ID provided');
+      return;
+    }
+
+    console.log('Dashboard mounted for restaurant:', restaurantId);
+    
+    // Subscribe to restaurant updates (real-time, no initial fetch needed)
     const unsubscribeRestaurant = subscribeToRestaurant(restaurantId, (data) => {
-      setRestaurant(data);
+      console.log('Restaurant data received:', data);
+      if (data) {
+        setRestaurant(data);
+        setError(null);
+      } else {
+        setError('Restaurant not found');
+      }
     });
     
     // Subscribe to queue updates
     const unsubscribeQueue = subscribeToRestaurantQueue(restaurantId, (queueData) => {
+      console.log('Queue data received:', queueData.length, 'entries');
       setQueue(queueData);
-      setLoading(false);
     });
 
     return () => {
+      console.log('Dashboard unmounting, cleaning up subscriptions');
       unsubscribeRestaurant();
       unsubscribeQueue();
     };
-  }, [restaurantId]);
-
-  const loadRestaurant = async () => {
-    try {
-      const data = await getRestaurantById(restaurantId);
-      setRestaurant(data);
-    } catch (error) {
-      console.error('Error loading restaurant:', error);
-    }
-  };
+  }, [restaurantId, authChecked]);
 
   const handleAdmit = async (entryId) => {
     try {
@@ -139,11 +184,62 @@ const Dashboard = () => {
   const totalWaiting = queue.length;
   const avgWaitTime = restaurant?.currentWaitTime || 0;
 
-  if (loading) {
+  // Show loading while checking authentication
+  if (!authChecked) {
     return (
-      <div className="dashboard-loading">
-        <div className="loading-spinner"></div>
-        <p>Loading dashboard...</p>
+      <div className="dashboard">
+        <div style={{ 
+          maxWidth: '600px', 
+          margin: '4rem auto', 
+          padding: '3rem', 
+          textAlign: 'center'
+        }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            border: '4px solid #d2d2d7',
+            borderTopColor: '#5db075',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 1.5rem'
+          }}></div>
+          <p style={{ color: '#6e6e73', fontSize: '1.125rem' }}>Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if restaurant not found
+  if (error) {
+    return (
+      <div className="dashboard">
+        <div style={{ 
+          maxWidth: '600px', 
+          margin: '4rem auto', 
+          padding: '2rem', 
+          background: '#fff5f5', 
+          borderRadius: '12px',
+          border: '1px solid #ffdddd',
+          textAlign: 'center'
+        }}>
+          <h2 style={{ color: '#dc3545', marginBottom: '1rem' }}>⚠️ Error</h2>
+          <p style={{ color: '#6e6e73', marginBottom: '1.5rem' }}>{error}</p>
+          <button 
+            onClick={() => navigate('/restaurant-signin')}
+            style={{
+              padding: '0.75rem 2rem',
+              background: '#5db075',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '1rem',
+              fontWeight: '500'
+            }}
+          >
+            Go to Sign In
+          </button>
+        </div>
       </div>
     );
   }
@@ -156,15 +252,24 @@ const Dashboard = () => {
       {/* Header */}
       <div className="dashboard-header" data-aos="fade-down">
         <div className="header-content">
-          <h1>{restaurant?.name}</h1>
+          <h1>{restaurant?.name || 'Loading...'}</h1>
           <p className="subtitle">Queue Management</p>
         </div>
-        <button 
-          className={`pause-toggle ${restaurant?.queuePaused ? 'paused' : ''}`}
-          onClick={handleTogglePause}
-        >
-          {restaurant?.queuePaused ? 'Resume Queue' : 'Pause Queue'}
-        </button>
+        <div className="header-actions">
+          <button 
+            className={`pause-toggle ${restaurant?.queuePaused ? 'paused' : ''}`}
+            onClick={handleTogglePause}
+          >
+            {restaurant?.queuePaused ? 'Resume Queue' : 'Pause Queue'}
+          </button>
+          <button 
+            className="settings-btn"
+            onClick={() => navigate(`/dashboard/${restaurantId}/settings`)}
+            title="Restaurant Settings"
+          >
+            ⚙️
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}

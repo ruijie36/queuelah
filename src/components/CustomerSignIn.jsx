@@ -31,13 +31,13 @@ const CustomerSignIn = () => {
       if (isSignUp) {
         // Sign up new user
         await createUserWithEmailAndPassword(auth, email, password);
-        // Redirect to restaurants page
-        navigate('/restaurants');
+        // Redirect to customer dashboard
+        navigate('/customer/dashboard');
       } else {
         // Sign in existing user
         await signInWithEmailAndPassword(auth, email, password);
-        // Redirect to restaurants page
-        navigate('/restaurants');
+        // Redirect to customer dashboard
+        navigate('/customer/dashboard');
       }
     } catch (err) {
       setError(err.message);
